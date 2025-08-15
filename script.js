@@ -47,6 +47,9 @@ class FileManager {
         
         this.selectedFiles = [];
         this.fileMetadata = new Map(); // Store rotation and other metadata per file
+        this.backendAvailable = false; // Will be detected on startup
+        this.apiBaseUrl = window.location.origin; // Use same origin for API
+        
         this.supportedTypes = {
             'image/jpeg': 'JPG',
             'image/png': 'PNG',
@@ -58,7 +61,9 @@ class FileManager {
             'application/vnd.ms-powerpoint': 'PPT',
             'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
             'application/vnd.ms-excel': 'XLS',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX'
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+            'text/plain': 'TXT',
+            'application/rtf': 'RTF'
         };
         
         this.init();
@@ -66,6 +71,55 @@ class FileManager {
     
     init() {
         this.setupEventListeners();
+        this.checkBackendAvailability();
+    }
+    
+    async checkBackendAvailability() {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/api/health`, {
+                method: 'GET'
+            });
+            
+            if (response.ok) {
+                const health = await response.json();
+                this.backendAvailable = true;
+                console.log('✅ Backend available:', health);
+                this.updateDocumentSupport(true);
+            }
+        } catch (error) {
+            console.log('ℹ️ Backend not available (frontend-only mode):', error.message);
+            this.backendAvailable = false;
+            this.updateDocumentSupport(false);
+        }
+    }
+    
+    updateDocumentSupport(available) {
+        const formatTags = document.querySelectorAll('.format-tag');
+        formatTags.forEach(tag => {
+            if (tag.textContent.includes('DOCX') || tag.textContent.includes('PPTX') || tag.textContent.includes('XLSX')) {
+                // Always enable client-side conversion
+                tag.classList.remove('disabled');
+                
+                if (available) {
+                    tag.title = 'Server-side document conversion available!';
+                    tag.textContent = tag.textContent.replace('Coming in Step 6!', 'Server Ready!');
+                } else {
+                    tag.title = 'Client-side document conversion (perfect for online hosting!)';
+                    if (tag.textContent.includes('Coming in Step 6!')) {
+                        tag.textContent = tag.textContent.replace('Coming in Step 6!', 'Client Ready!');
+                    } else if (!tag.textContent.includes('Client Ready!') && !tag.textContent.includes('Server Ready!')) {
+                        tag.textContent = tag.textContent + ' Client Ready!';
+                    }
+                }
+            }
+        });
+        
+        // Show conversion status in console
+        if (available) {
+            console.log('🖥️ Server-side conversion available (LibreOffice)');
+        } else {
+            console.log('🌐 Client-side conversion ready (Netlify/Vercel compatible!)');
+        }
     }
     
     setupEventListeners() {
@@ -110,11 +164,30 @@ class FileManager {
     }
     
     processFiles(files) {
+        // Validate files first
+        const validation = this.validateFiles(files);
+        
+        if (validation.errors.length > 0) {
+            this.showError('File validation failed:\n' + validation.errors.join('\n'));
+            return;
+        }
+        
+        // Show warnings if any
+        if (validation.warnings.length > 0) {
+            console.warn('File warnings:', validation.warnings);
+            this.showWarning(validation.warnings.join('\n'));
+        }
+        
         const validFiles = files.filter(file => this.isValidFile(file));
         
         if (validFiles.length === 0) {
-            this.showError('Please select valid files (JPG, PNG, PDF, DOCX, PPTX, XLSX)');
+            this.showError('Please select valid files (JPG, PNG, GIF, WEBP)');
             return;
+        }
+        
+        // Show batch info
+        if (validFiles.length > 10) {
+            this.showInfo(`Processing ${validFiles.length} files (${this.formatFileSize(validation.totalSize)}). This may take a few moments.`);
         }
         
         // Add new files to selection
@@ -135,6 +208,74 @@ class FileManager {
         });
         
         this.updateUI();
+    }
+    
+    showWarning(message) {
+        const warningDiv = document.createElement('div');
+        warningDiv.className = 'warning-message';
+        warningDiv.innerHTML = `
+            <div class="warning-content">
+                <span class="warning-icon">⚠️</span>
+                <span class="warning-text">${message}</span>
+                <button class="warning-close" onclick="this.parentElement.parentElement.remove()">×</button>
+            </div>
+        `;
+        warningDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ff9800;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            font-weight: 500;
+            max-width: 400px;
+            animation: slideInRight 0.3s ease-out;
+        `;
+        
+        document.body.appendChild(warningDiv);
+        
+        setTimeout(() => {
+            if (warningDiv.parentNode) {
+                warningDiv.remove();
+            }
+        }, 6000);
+    }
+    
+    showInfo(message) {
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'info-message';
+        infoDiv.innerHTML = `
+            <div class="info-content">
+                <span class="info-icon">ℹ️</span>
+                <span class="info-text">${message}</span>
+                <button class="info-close" onclick="this.parentElement.parentElement.remove()">×</button>
+            </div>
+        `;
+        infoDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #2196F3;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            font-weight: 500;
+            max-width: 400px;
+            animation: slideInRight 0.3s ease-out;
+        `;
+        
+        document.body.appendChild(infoDiv);
+        
+        setTimeout(() => {
+            if (infoDiv.parentNode) {
+                infoDiv.remove();
+            }
+        }, 5000);
     }
     
     isValidFile(file) {
@@ -318,47 +459,304 @@ class FileManager {
     }
     
     showError(message) {
-        // Simple error display - could be enhanced with a modal or toast
-        alert(message);
+        // Enhanced error message with better styling
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message';
+        errorDiv.innerHTML = `
+            <div class="error-content">
+                <span class="error-icon">❌</span>
+                <span class="error-text">${message}</span>
+                <button class="error-close" onclick="this.parentElement.parentElement.remove()">×</button>
+            </div>
+        `;
+        errorDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #f44336;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            font-weight: 500;
+            max-width: 400px;
+            animation: slideInRight 0.3s ease-out;
+        `;
+        
+        document.body.appendChild(errorDiv);
+        
+        // Auto-remove after 8 seconds
+        setTimeout(() => {
+            if (errorDiv.parentNode) {
+                errorDiv.remove();
+            }
+        }, 8000);
+    }
+    
+    validateFiles(files) {
+        const errors = [];
+        const warnings = [];
+        let totalSize = 0;
+        
+        files.forEach(file => {
+            totalSize += file.size;
+            
+            // Check file size (50MB limit per file)
+            if (file.size > 50 * 1024 * 1024) {
+                errors.push(`${file.name}: File too large (${this.formatFileSize(file.size)} > 50MB)`);
+            }
+            
+            // Check file type
+            if (!this.isValidFile(file)) {
+                errors.push(`${file.name}: Unsupported file type`);
+            }
+            
+            // Performance warnings
+            if (file.size > 10 * 1024 * 1024) {
+                warnings.push(`${file.name}: Large file (${this.formatFileSize(file.size)}) may take longer to process`);
+            }
+        });
+        
+        // Check total batch size (500MB limit)
+        if (totalSize > 500 * 1024 * 1024) {
+            errors.push(`Total batch size too large: ${this.formatFileSize(totalSize)} (max 500MB)`);
+        }
+        
+        // Check number of files (100 limit)
+        if (files.length > 100) {
+            errors.push(`Too many files: ${files.length} (max 100 files per batch)`);
+        }
+        
+        return { errors, warnings, totalSize };
     }
     
     async convertFiles() {
         if (this.selectedFiles.length === 0) return;
         
+        // Separate files by type
+        const imageFiles = this.selectedFiles.filter(file => 
+            file.type.startsWith('image/'));
+        const documentFiles = this.selectedFiles.filter(file => 
+            !file.type.startsWith('image/') && file.type !== 'application/pdf');
+        
         // Show progress
         this.showProgress('Preparing conversion...');
         
         try {
-            // Filter to only image files for now (Step 2 focus)
-            const imageFiles = this.selectedFiles.filter(file => file.type.startsWith('image/'));
+            // Handle mixed files
+            if (imageFiles.length > 0 && documentFiles.length > 0) {
+                this.showError('Please convert images and documents separately for now. This will be improved in Step 7!');
+                return;
+            }
             
-            if (imageFiles.length === 0) {
-                const hasDocuments = this.selectedFiles.some(file => 
-                    file.type.includes('document') || 
-                    file.type.includes('presentation') || 
-                    file.type.includes('spreadsheet') ||
-                    file.type.includes('pdf')
-                );
-                
-                if (hasDocuments) {
-                    throw new Error('Document conversion (DOCX, PPTX, XLSX) is coming in Step 6! Currently only images (JPG, PNG, GIF, WEBP) are supported.');
+            // Convert images (client-side)
+            if (imageFiles.length > 0) {
+                if (imageFiles.length === 1) {
+                    await this.convertSingleImage(imageFiles[0]);
                 } else {
-                    throw new Error('Please select at least one image file (JPG, PNG, GIF, WEBP)');
+                    await this.convertMultipleImages(imageFiles);
+                }
+                this.showSuccess(`Successfully converted ${imageFiles.length} image(s) to PDF!`);
+            }
+            
+            // Convert documents (client-side or server-side)
+            if (documentFiles.length > 0) {
+                if (!this.backendAvailable) {
+                    // Use client-side conversion
+                    console.log('🌐 Using client-side document conversion (perfect for online hosting!)');
+                    await this.convertDocumentsClientSide(documentFiles);
+                } else {
+                    // Use server-side conversion
+                    console.log('🖥️ Using server-side document conversion');
+                    await this.convertDocuments(documentFiles);
                 }
             }
             
-            if (imageFiles.length === 1) {
-                await this.convertSingleImage(imageFiles[0]);
-            } else {
-                await this.convertMultipleImages(imageFiles);
+            // No valid files
+            if (imageFiles.length === 0 && documentFiles.length === 0) {
+                this.showError('Please select valid files. Supported: Images (JPG, PNG, GIF, WEBP) or Documents (DOCX, PPTX, XLSX, TXT)');
+                return;
             }
             
-            this.showSuccess(`Successfully converted ${imageFiles.length} image(s) to PDF!`);
         } catch (error) {
             this.showError('Conversion failed: ' + error.message);
         } finally {
             this.hideProgress();
         }
+    }
+    
+    async convertDocuments(files) {
+        try {
+            // Step 1: Upload files to server
+            this.updateProgress(10, 'Uploading documents to server...');
+            
+            const formData = new FormData();
+            files.forEach(file => {
+                formData.append('files', file);
+            });
+            
+            const uploadResponse = await fetch(`${this.apiBaseUrl}/api/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!uploadResponse.ok) {
+                const error = await uploadResponse.json();
+                throw new Error(error.message || 'Upload failed');
+            }
+            
+            const uploadResult = await uploadResponse.json();
+            this.updateProgress(50, 'Documents uploaded. Processing...');
+            
+            // Step 2: Convert to PDF (placeholder for Step 7)
+            const convertResponse = await fetch(`${this.apiBaseUrl}/api/convert`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    fileIds: uploadResult.files.map(f => f.id),
+                    settings: this.getPdfSettings()
+                })
+            });
+            
+            if (convertResponse.ok) {
+                // Check if response is JSON or file download
+                const contentType = convertResponse.headers.get('content-type');
+                
+                if (contentType && contentType.includes('application/json')) {
+                    // JSON response (multiple files or error info)
+                    const convertResult = await convertResponse.json();
+                    this.updateProgress(90, 'Conversion complete!');
+                    
+                    if (convertResult.success) {
+                        this.showSuccess(`Successfully converted ${convertResult.conversions?.filter(c => !c.error).length || 0} document(s) to PDF!`);
+                        
+                        // Show download info for multiple files
+                        if (convertResult.conversions?.length > 1) {
+                            this.showInfo('Multiple files converted! Individual downloads will be available soon.');
+                        }
+                    } else {
+                        this.showInfo(convertResult.message || 'Document conversion completed with some issues.');
+                    }
+                } else {
+                    // File download response (single file)
+                    this.updateProgress(95, 'Downloading converted PDF...');
+                    
+                    const blob = await convertResponse.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    
+                    // Get filename from Content-Disposition header or use default
+                    const disposition = convertResponse.headers.get('Content-Disposition');
+                    let filename = 'converted-document.pdf';
+                    if (disposition && disposition.includes('filename=')) {
+                        filename = disposition.split('filename=')[1].replace(/"/g, '');
+                    }
+                    
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    
+                    this.updateProgress(100, 'Download complete!');
+                    this.showSuccess('Document converted and downloaded successfully!');
+                }
+            } else {
+                const errorResult = await convertResponse.json();
+                throw new Error(errorResult.message || 'Server conversion failed');
+            }
+            
+        } catch (error) {
+            throw new Error(`Document conversion failed: ${error.message}`);
+        }
+    }
+    
+    async convertDocumentsClientSide(files) {
+        try {
+            this.updateProgress(10, 'Initializing client-side converter...');
+            
+            // Wait for client converter to be ready
+            let attempts = 0;
+            while (!window.clientConverter?.isReady && attempts < 50) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+            
+            if (!window.clientConverter?.isReady) {
+                throw new Error('Client-side converter not ready. Please refresh the page and try again.');
+            }
+            
+            const convertedFiles = [];
+            const totalFiles = files.length;
+            
+            // Convert each file
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const progress = 20 + (i / totalFiles) * 60;
+                
+                this.updateProgress(progress, `Converting ${file.name}...`);
+                
+                try {
+                    const result = await window.clientConverter.convertFile(file);
+                    convertedFiles.push(result);
+                    
+                    this.updateProgress(progress + (60 / totalFiles) * 0.8, `Converted ${file.name} ✅`);
+                    
+                } catch (error) {
+                    console.error(`Failed to convert ${file.name}:`, error);
+                    
+                    // Show helpful error message based on file type
+                    const extension = file.name.split('.').pop().toLowerCase();
+                    let helpMessage = error.message;
+                    
+                    if (extension === 'pptx' || extension === 'ppt') {
+                        helpMessage = 'PowerPoint conversion: Please export your presentation as PDF from PowerPoint, or convert slides to images first.';
+                    } else if (extension === 'doc') {
+                        helpMessage = 'Legacy DOC format: Please save your document as DOCX format for better conversion support.';
+                    }
+                    
+                    this.showWarning(`${file.name}: ${helpMessage}`);
+                    continue;
+                }
+            }
+            
+            this.updateProgress(90, 'Finalizing conversions...');
+            
+            if (convertedFiles.length === 0) {
+                throw new Error('No files could be converted. Please check the file formats and try again.');
+            }
+            
+            // Download files
+            if (convertedFiles.length === 1) {
+                // Single file - direct download
+                const file = convertedFiles[0];
+                window.clientConverter.downloadPdf(file.data, file.filename);
+                this.showSuccess('Document converted and downloaded successfully!');
+            } else {
+                // Multiple files - download each one
+                for (const file of convertedFiles) {
+                    window.clientConverter.downloadPdf(file.data, file.filename);
+                }
+                this.showSuccess(`Successfully converted and downloaded ${convertedFiles.length} document(s)!`);
+            }
+            
+            this.updateProgress(100, 'All conversions complete!');
+            
+        } catch (error) {
+            throw new Error(`Client-side conversion failed: ${error.message}`);
+        }
+    }
+    
+    updateProgress(percentage, message) {
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        
+        if (progressFill) progressFill.style.width = percentage + '%';
+        if (progressText) progressText.textContent = message;
     }
     
     async convertSingleImage(file) {
@@ -418,6 +816,9 @@ class FileManager {
         const progressFill = document.getElementById('progressFill');
         const progressText = document.getElementById('progressText');
         
+        // Show detailed progress info
+        this.showDetailedProgress(files.length);
+        
         // Get PDF settings
         const settings = this.getPdfSettings();
         
@@ -430,41 +831,233 @@ class FileManager {
         const maxWidth = pageWidth - (margin * 2);
         const maxHeight = pageHeight - (margin * 2);
         
+        // Process in chunks to prevent UI blocking
+        const chunkSize = this.getOptimalChunkSize(files.length);
+        const startTime = Date.now();
+        
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             const progress = ((i + 1) / files.length) * 100;
             
+            // Update progress with detailed info
+            this.updateDetailedProgress(i + 1, files.length, file.name, startTime);
             progressFill.style.width = progress + '%';
-            progressText.textContent = `Processing page ${i + 1} of ${files.length}...`;
             
-            // Load image
-            const imageData = await this.loadImageData(file);
-            
-            // Add new page if not first image
-            if (i > 0) {
-                pdf.addPage();
+            try {
+                // Load image with memory optimization
+                const imageData = await this.loadImageDataOptimized(file);
+                
+                // Add new page if not first image
+                if (i > 0) {
+                    pdf.addPage();
+                }
+                
+                // Calculate dimensions
+                const { width, height } = this.calculateImageDimensions(
+                    imageData, 
+                    maxWidth, 
+                    maxHeight
+                );
+                
+                // Center the image
+                const x = (pageWidth - width) / 2;
+                const y = (pageHeight - height) / 2;
+                
+                // Add image to PDF
+                pdf.addImage(imageData.dataUrl, 'JPEG', x, y, width, height);
+                
+                // Yield control to browser every chunk
+                if ((i + 1) % chunkSize === 0) {
+                    await this.yieldToBrowser();
+                }
+                
+            } catch (error) {
+                console.error(`Failed to process ${file.name}:`, error);
+                this.updateDetailedProgress(i + 1, files.length, `❌ Error: ${file.name}`, startTime);
+                
+                // Continue with other images instead of failing completely
+                continue;
             }
-            
-            // Calculate dimensions
-            const { width, height } = this.calculateImageDimensions(
-                imageData, 
-                maxWidth, 
-                maxHeight
-            );
-            
-            // Center the image
-            const x = (pageWidth - width) / 2;
-            const y = (pageHeight - height) / 2;
-            
-            // Add image to PDF
-            pdf.addImage(imageData.dataUrl, 'JPEG', x, y, width, height);
         }
         
+        progressText.textContent = 'Generating PDF file...';
+        progressFill.style.width = '95%';
+        
+        // Final yield before PDF generation
+        await this.yieldToBrowser();
+        
         progressText.textContent = 'Downloading PDF...';
+        progressFill.style.width = '100%';
         
         // Download with timestamp
         const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
         pdf.save(`converted-images-${timestamp}.pdf`);
+        
+        this.hideDetailedProgress();
+    }
+    
+    getOptimalChunkSize(totalFiles) {
+        // Adjust chunk size based on total files for optimal performance
+        if (totalFiles <= 10) return 2;
+        if (totalFiles <= 50) return 3;
+        return 5; // For very large batches
+    }
+    
+    async yieldToBrowser() {
+        // Give browser time to update UI and handle other tasks
+        return new Promise(resolve => setTimeout(resolve, 0));
+    }
+    
+    async loadImageDataOptimized(file) {
+        // Add memory management and size limits
+        const maxFileSize = 50 * 1024 * 1024; // 50MB limit
+        
+        if (file.size > maxFileSize) {
+            throw new Error(`File too large: ${this.formatFileSize(file.size)} (max 50MB)`);
+        }
+        
+        const metadata = this.fileMetadata.get(file) || { 
+            rotation: 0, 
+            fitMode: 'fit',
+            brightness: 0,
+            contrast: 0,
+            flipHorizontal: false,
+            flipVertical: false,
+            cropArea: null
+        };
+        
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        // Optimize canvas size for memory efficiency
+                        const maxDimension = 2000; // Limit for memory
+                        let canvasWidth = img.width;
+                        let canvasHeight = img.height;
+                        
+                        if (canvasWidth > maxDimension || canvasHeight > maxDimension) {
+                            const scale = maxDimension / Math.max(canvasWidth, canvasHeight);
+                            canvasWidth *= scale;
+                            canvasHeight *= scale;
+                        }
+                        
+                        // Calculate canvas dimensions based on rotation
+                        const rotation = metadata.rotation * Math.PI / 180;
+                        const cos = Math.abs(Math.cos(rotation));
+                        const sin = Math.abs(Math.sin(rotation));
+                        
+                        const newWidth = canvasWidth * cos + canvasHeight * sin;
+                        const newHeight = canvasWidth * sin + canvasHeight * cos;
+                        
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        canvas.width = newWidth;
+                        canvas.height = newHeight;
+                        
+                        // Apply all transformations
+                        ctx.translate(newWidth / 2, newHeight / 2);
+                        
+                        // Apply rotation
+                        if (metadata.rotation) {
+                            ctx.rotate(rotation);
+                        }
+                        
+                        // Apply flips
+                        if (metadata.flipHorizontal || metadata.flipVertical) {
+                            ctx.scale(
+                                metadata.flipHorizontal ? -1 : 1,
+                                metadata.flipVertical ? -1 : 1
+                            );
+                        }
+                        
+                        // Apply brightness and contrast if needed
+                        if (metadata.brightness !== 0 || metadata.contrast !== 0) {
+                            const tempCanvas = document.createElement('canvas');
+                            const tempCtx = tempCanvas.getContext('2d');
+                            tempCanvas.width = canvasWidth;
+                            tempCanvas.height = canvasHeight;
+                            
+                            // Draw to temp canvas
+                            tempCtx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+                            
+                            // Apply adjustments
+                            const imageData = tempCtx.getImageData(0, 0, canvasWidth, canvasHeight);
+                            const data = imageData.data;
+                            
+                            const brightnessAdjust = metadata.brightness * 2.55;
+                            const contrastAdjust = (metadata.contrast + 100) / 100;
+                            
+                            for (let i = 0; i < data.length; i += 4) {
+                                data[i] = Math.max(0, Math.min(255, (data[i] - 128) * contrastAdjust + 128 + brightnessAdjust));
+                                data[i + 1] = Math.max(0, Math.min(255, (data[i + 1] - 128) * contrastAdjust + 128 + brightnessAdjust));
+                                data[i + 2] = Math.max(0, Math.min(255, (data[i + 2] - 128) * contrastAdjust + 128 + brightnessAdjust));
+                            }
+                            
+                            tempCtx.putImageData(imageData, 0, 0);
+                            
+                            // Apply crop if exists
+                            if (metadata.cropArea) {
+                                const sourceX = (metadata.cropArea.x / 100) * canvasWidth;
+                                const sourceY = (metadata.cropArea.y / 100) * canvasHeight;
+                                const sourceWidth = (metadata.cropArea.width / 100) * canvasWidth;
+                                const sourceHeight = (metadata.cropArea.height / 100) * canvasHeight;
+                                
+                                ctx.drawImage(
+                                    tempCanvas,
+                                    sourceX, sourceY, sourceWidth, sourceHeight,
+                                    -canvasWidth / 2, -canvasHeight / 2, canvasWidth, canvasHeight
+                                );
+                            } else {
+                                ctx.drawImage(tempCanvas, -canvasWidth / 2, -canvasHeight / 2, canvasWidth, canvasHeight);
+                            }
+                        } else {
+                            // Apply crop if exists (no brightness/contrast)
+                            if (metadata.cropArea) {
+                                const sourceX = (metadata.cropArea.x / 100) * img.width;
+                                const sourceY = (metadata.cropArea.y / 100) * img.height;
+                                const sourceWidth = (metadata.cropArea.width / 100) * img.width;
+                                const sourceHeight = (metadata.cropArea.height / 100) * img.height;
+                                
+                                ctx.drawImage(
+                                    img,
+                                    sourceX, sourceY, sourceWidth, sourceHeight,
+                                    -canvasWidth / 2, -canvasHeight / 2, canvasWidth, canvasHeight
+                                );
+                            } else {
+                                ctx.drawImage(img, -canvasWidth / 2, -canvasHeight / 2, canvasWidth, canvasHeight);
+                            }
+                        }
+                        
+                        resolve({
+                            dataUrl: canvas.toDataURL('image/jpeg', 0.85),
+                            width: newWidth,
+                            height: newHeight,
+                            originalWidth: img.width,
+                            originalHeight: img.height,
+                            rotation: metadata.rotation,
+                            fitMode: metadata.fitMode,
+                            brightness: metadata.brightness,
+                            contrast: metadata.contrast,
+                            flipHorizontal: metadata.flipHorizontal,
+                            flipVertical: metadata.flipVertical
+                        });
+                        
+                        // Clean up
+                        canvas.remove();
+                        
+                    } catch (error) {
+                        reject(new Error(`Image processing failed: ${error.message}`));
+                    }
+                };
+                img.onerror = () => reject(new Error('Failed to load image'));
+                img.src = e.target.result;
+            };
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(file);
+        });
     }
     
     createPdfWithSettings(settings) {
@@ -1483,8 +2076,102 @@ class FileManager {
         this.convertBtn.disabled = false;
     }
     
+    showDetailedProgress(totalFiles) {
+        // Create detailed progress display
+        let detailsContainer = document.getElementById('progressDetails');
+        if (!detailsContainer) {
+            detailsContainer = document.createElement('div');
+            detailsContainer.id = 'progressDetails';
+            detailsContainer.className = 'progress-details';
+            this.progressSection.appendChild(detailsContainer);
+        }
+        
+        detailsContainer.innerHTML = `
+            <div class="progress-stats">
+                <div class="stat">
+                    <span class="stat-label">Images:</span>
+                    <span class="stat-value" id="progressCount">0 / ${totalFiles}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Time:</span>
+                    <span class="stat-value" id="progressTime">0s</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Current:</span>
+                    <span class="stat-value" id="progressCurrent">Starting...</span>
+                </div>
+            </div>
+            <div class="progress-performance">
+                <small id="progressMemory">Memory: Optimized</small>
+            </div>
+        `;
+    }
+    
+    updateDetailedProgress(current, total, fileName, startTime) {
+        const countElement = document.getElementById('progressCount');
+        const timeElement = document.getElementById('progressTime');
+        const currentElement = document.getElementById('progressCurrent');
+        const memoryElement = document.getElementById('progressMemory');
+        
+        if (countElement) countElement.textContent = `${current} / ${total}`;
+        
+        if (timeElement) {
+            const elapsed = Math.round((Date.now() - startTime) / 1000);
+            const remaining = total > current ? Math.round((elapsed / current) * (total - current)) : 0;
+            timeElement.textContent = `${elapsed}s (${remaining}s left)`;
+        }
+        
+        if (currentElement) {
+            const shortName = fileName.length > 30 ? fileName.substring(0, 27) + '...' : fileName;
+            currentElement.textContent = shortName;
+        }
+        
+        if (memoryElement && performance.memory) {
+            const used = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
+            const limit = Math.round(performance.memory.jsHeapSizeLimit / 1024 / 1024);
+            memoryElement.textContent = `Memory: ${used}MB / ${limit}MB`;
+        }
+    }
+    
+    hideDetailedProgress() {
+        const detailsContainer = document.getElementById('progressDetails');
+        if (detailsContainer) {
+            detailsContainer.remove();
+        }
+    }
+    
     showSuccess(message) {
-        alert(message); // Simple success message - could be enhanced
+        // Enhanced success message with better feedback
+        const successDiv = document.createElement('div');
+        successDiv.className = 'success-message';
+        successDiv.innerHTML = `
+            <div class="success-content">
+                <span class="success-icon">✅</span>
+                <span class="success-text">${message}</span>
+            </div>
+        `;
+        successDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            font-weight: 500;
+            max-width: 300px;
+        `;
+        
+        document.body.appendChild(successDiv);
+        
+        // Remove after 4 seconds
+        setTimeout(() => {
+            if (successDiv.parentNode) {
+                successDiv.remove();
+            }
+        }, 4000);
     }
 }
 
