@@ -79,27 +79,95 @@ class FreeUnlimitedConverter {
     }
     
     async convertGoogleDocsFile(file) {
-        console.log('📊 Processing Google Docs file with specialized converter...');
+        console.log('📊 Processing Google Docs file with enhanced solutions...');
         
         try {
+            // Use enhanced Google Docs solutions first
+            if (window.enhancedGoogleDocsSolutions) {
+                console.log('🚀 Using enhanced Google Docs solutions...');
+                return await window.enhancedGoogleDocsSolutions.handleGoogleDocsFile(file);
+            }
+            
+            // Fallback to original Google Docs converter
             if (window.googleDocsConverter) {
+                console.log('🔄 Falling back to original Google Docs converter...');
                 return await window.googleDocsConverter.convertGoogleDocsFile(file);
-            } else {
-                throw new Error('Google Docs converter not available');
             }
+            
+            throw new Error('No Google Docs converter available');
+            
         } catch (error) {
-            console.error('❌ Google Docs conversion failed:', error);
+            console.error('❌ Enhanced Google Docs conversion failed:', error);
             
-            // Fallback: Try to extract any text content
-            console.log('🔄 Attempting fallback text extraction...');
-            const content = await file.text();
-            
-            if (content && content.trim().length > 0) {
-                return await this.createEnhancedPdf(content, file.name, 'Google Docs File (Fallback)');
+            // Final fallback: Try to extract any text content and create informative PDF
+            console.log('🔄 Attempting final fallback text extraction...');
+            try {
+                const content = await file.text();
+                
+                // Even if content is minimal, create a helpful PDF
+                const helpfulContent = content && content.trim().length > 5 ? 
+                    content : 
+                    this.createGoogleDocsHelpContent(file.name);
+                
+                return await this.createEnhancedPdf(helpfulContent, file.name, 'Google Docs File');
+                
+            } catch (fallbackError) {
+                console.error('❌ Final fallback failed:', fallbackError);
+                
+                // Last resort: Create a help PDF
+                const helpContent = this.createGoogleDocsHelpContent(file.name);
+                return await this.createEnhancedPdf(helpContent, file.name, 'Google Docs Help Guide');
             }
-            
-            throw new Error(`Google Docs conversion failed: ${error.message}`);
         }
+    }
+    
+    createGoogleDocsHelpContent(filename) {
+        return `
+GOOGLE DOCS FILE PROCESSING GUIDE
+=================================
+
+File: ${filename}
+
+ISSUE DETECTED:
+This file appears to be a Google Docs file that couldn't be processed automatically.
+
+COMMON REASONS:
+• .gdoc files are shortcuts to online documents (not actual content)
+• File may be corrupted or in an unsupported format
+• Content extraction failed due to file structure
+
+SOLUTIONS:
+
+1. FOR .GDOC SHORTCUT FILES:
+   - Open the Google Doc online in your browser
+   - File → Download → Microsoft Word (.docx)
+   - Upload the .docx file to this converter
+
+2. FOR GOOGLE DOCS EXPORTS:
+   - Re-export from Google Docs using File → Download
+   - Choose "Microsoft Word (.docx)" format
+   - Ensure the export completed successfully
+
+3. ALTERNATIVE METHODS:
+   - Copy all text from Google Docs (Ctrl+A, Ctrl+C)
+   - Paste into a text editor and save as .txt
+   - Upload the .txt file to this converter
+
+4. CHECK FILE SIZE:
+   - Very small files (< 1KB) are likely just shortcuts
+   - Large files should contain actual content
+
+SUPPORTED FORMATS:
+• Microsoft Word (.docx, .doc) - Best compatibility
+• Excel Files (.xlsx)
+• PowerPoint (.pptx) 
+• Text Files (.txt)
+• Images (JPG, PNG, etc.)
+
+This converter works best with files that contain the actual document content, not shortcuts or links to online documents.
+
+For technical support, ensure you're uploading the actual exported document file, not a shortcut or link file.
+        `.trim();
     }
     
     async convertDocWithLibreOfficeJS(file) {
