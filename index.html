@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I HATE PDF - Convert Files to PDF</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="theme-light">
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <h1 class="logo">I HATE PDF</h1>
+                <p class="tagline">Fast. Reliable. Free.</p>
+                <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                    <span class="theme-icon">🌙</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <div class="container">
+            <!-- Hero Section -->
+            <section class="hero">
+                <h2 class="hero-title">Convert Your Files to PDF</h2>
+                <p class="hero-description">
+                    Drop your images here and get a perfect PDF in seconds.
+                    No signup required. Your files stay private.
+                    <br><small style="color: var(--text-secondary); font-style: italic;">📄 Document support (DOCX, PPTX) coming soon!</small>
+                </p>
+            </section>
+
+            <!-- File Drop Zone -->
+            <section class="upload-section">
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-content">
+                        <div class="drop-icon">📁</div>
+                        <h3 class="drop-title">Drop files here</h3>
+                        <p class="drop-description">or click to select files</p>
+                        <div class="supported-formats">
+                            <span class="format-tag">JPG</span>
+                            <span class="format-tag">PNG</span>
+                            <span class="format-tag">GIF</span>
+                            <span class="format-tag">WEBP</span>
+                            <span class="format-tag disabled" title="Coming in Step 6!">DOCX</span>
+                            <span class="format-tag disabled" title="Coming in Step 6!">PPTX</span>
+                        </div>
+                    </div>
+                    <input type="file" id="fileInput" class="file-input" multiple accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx">
+                </div>
+            </section>
+
+            <!-- File Preview Area (Hidden by default) -->
+            <section class="preview-section" id="previewSection" style="display: none;">
+                <div class="preview-header">
+                    <h3>Selected Files</h3>
+                    <button class="btn btn-secondary" id="clearFiles">Clear All</button>
+                </div>
+                <div class="file-list" id="fileList">
+                    <!-- File previews will be added here dynamically -->
+                </div>
+                <div class="conversion-controls">
+                    <button class="btn btn-primary" id="convertBtn" disabled>
+                        Convert to PDF
+                    </button>
+                </div>
+            </section>
+
+            <!-- Progress Section (Hidden by default) -->
+            <section class="progress-section" id="progressSection" style="display: none;">
+                <div class="progress-container">
+                    <h3>Converting...</h3>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p class="progress-text" id="progressText">Preparing files...</p>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 I HATE PDF. Made with ❤️ for productivity.</p>
+            <div class="footer-links">
+                <a href="#privacy">Privacy</a>
+                <a href="#about">About</a>
+                <a href="#contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Image Editor Modal -->
+    <div class="modal-overlay" id="imageEditorModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Advanced Image Editor</h3>
+                <button class="modal-close" onclick="fileManager.closeImageEditor()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="editor-layout">
+                    <!-- Image Preview Area -->
+                    <div class="editor-preview">
+                        <div class="preview-container">
+                            <!-- PDF Page Preview -->
+                            <div class="pdf-page-preview" id="pdfPagePreview">
+                                <div class="page-background">
+                                    <canvas id="editorCanvas" class="editor-canvas"></canvas>
+                                    <!-- Crop overlay -->
+                                    <div class="crop-overlay" id="cropOverlay" style="display: none;">
+                                        <div class="crop-selection" id="cropSelection">
+                                            <div class="crop-handle crop-nw"></div>
+                                            <div class="crop-handle crop-ne"></div>
+                                            <div class="crop-handle crop-sw"></div>
+                                            <div class="crop-handle crop-se"></div>
+                                            <div class="crop-handle crop-n"></div>
+                                            <div class="crop-handle crop-s"></div>
+                                            <div class="crop-handle crop-e"></div>
+                                            <div class="crop-handle crop-w"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="page-info">
+                                    <span id="pageSize">A4 Portrait</span> | 
+                                    <span id="imageDimensions">Loading...</span> | 
+                                    <span id="fitInfo">Fit Mode</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="editor-filename" id="editorFilename"></div>
+                    </div>
+                    
+                    <!-- Controls Panel -->
+                    <div class="editor-controls">
+                        <!-- Rotation & Flip -->
+                        <div class="control-group">
+                            <h4>Rotation & Flip</h4>
+                            <div class="control-buttons">
+                                <button class="btn btn-secondary" onclick="fileManager.editorRotate(-90)">↺ 90°</button>
+                                <button class="btn btn-secondary" onclick="fileManager.editorRotate(90)">↻ 90°</button>
+                                <button class="btn btn-secondary" onclick="fileManager.editorFlip('horizontal')">⟷ Flip H</button>
+                                <button class="btn btn-secondary" onclick="fileManager.editorFlip('vertical')">↕ Flip V</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Brightness & Contrast -->
+                        <div class="control-group">
+                            <h4>Adjustments</h4>
+                            <div class="slider-control">
+                                <label>Brightness: <span id="brightnessValue">0</span></label>
+                                <input type="range" id="brightnessSlider" min="-50" max="50" value="0" 
+                                       oninput="fileManager.editorAdjustBrightness(this.value)">
+                            </div>
+                            <div class="slider-control">
+                                <label>Contrast: <span id="contrastValue">0</span></label>
+                                <input type="range" id="contrastSlider" min="-50" max="50" value="0" 
+                                       oninput="fileManager.editorAdjustContrast(this.value)">
+                            </div>
+                        </div>
+                        
+                        <!-- Cropping Controls -->
+                        <div class="control-group">
+                            <h4>Cropping</h4>
+                            <div class="control-buttons">
+                                <button class="btn btn-secondary" onclick="fileManager.enableCropMode()">✂️ Crop Tool</button>
+                                <button class="btn btn-secondary" onclick="fileManager.resetCrop()">⟲ Reset Crop</button>
+                            </div>
+                            
+                            <!-- Crop Presets -->
+                            <div class="crop-presets">
+                                <label>Quick Ratios:</label>
+                                <button class="preset-btn" onclick="fileManager.applyCropRatio(1, 1)">1:1</button>
+                                <button class="preset-btn" onclick="fileManager.applyCropRatio(4, 3)">4:3</button>
+                                <button class="preset-btn" onclick="fileManager.applyCropRatio(16, 9)">16:9</button>
+                                <button class="preset-btn" onclick="fileManager.applyCropRatio(3, 2)">3:2</button>
+                            </div>
+                            
+                            <!-- Precision Controls -->
+                            <div class="precision-controls" id="precisionControls" style="display: none;">
+                                <h5>Precise Crop (pixels)</h5>
+                                <div class="precision-grid">
+                                    <div>
+                                        <label>X: <input type="number" id="cropX" min="0" value="0" onchange="fileManager.updateCropFromInputs()"></label>
+                                        <label>Y: <input type="number" id="cropY" min="0" value="0" onchange="fileManager.updateCropFromInputs()"></label>
+                                    </div>
+                                    <div>
+                                        <label>Width: <input type="number" id="cropWidth" min="1" value="100" onchange="fileManager.updateCropFromInputs()"></label>
+                                        <label>Height: <input type="number" id="cropHeight" min="1" value="100" onchange="fileManager.updateCropFromInputs()"></label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Fit Mode -->
+                        <div class="control-group">
+                            <h4>PDF Fit Mode</h4>
+                            <select id="editorFitMode" onchange="fileManager.editorChangeFitMode(this.value)">
+                                <option value="fit">Fit to Page</option>
+                                <option value="fill">Fill Page (may crop)</option>
+                                <option value="original">Original Size</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Reset -->
+                        <div class="control-group">
+                            <button class="btn btn-secondary" onclick="fileManager.editorReset()">🔄 Reset All</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fileManager.closeImageEditor()">Cancel</button>
+                <button class="btn btn-primary" onclick="fileManager.applyImageEdits()">Apply Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF Generation Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
