@@ -62,6 +62,7 @@ class FileManager {
             'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
             'application/vnd.ms-excel': 'XLS',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+            'application/vnd.google-apps.document': 'GDOC',
             'text/plain': 'TXT',
             'application/rtf': 'RTF'
         };

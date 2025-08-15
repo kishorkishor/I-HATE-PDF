@@ -13,7 +13,8 @@ class FreeUnlimitedConverter {
             'xls': 'convertXlsWithSheetJS', // Already perfect
             'xlsx': 'convertXlsxWithSheetJS', // Already perfect
             'rtf': 'convertRtfWithParser',
-            'odt': 'convertOdtWithParser'
+            'odt': 'convertOdtWithParser',
+            'gdoc': 'convertGoogleDocsFile'
         };
         
         this.init();
@@ -74,6 +75,30 @@ class FreeUnlimitedConverter {
             // Fallback to basic text extraction
             console.log('🔄 Trying fallback text extraction...');
             return await this.convertWithBasicExtraction(file);
+        }
+    }
+    
+    async convertGoogleDocsFile(file) {
+        console.log('📊 Processing Google Docs file with specialized converter...');
+        
+        try {
+            if (window.googleDocsConverter) {
+                return await window.googleDocsConverter.convertGoogleDocsFile(file);
+            } else {
+                throw new Error('Google Docs converter not available');
+            }
+        } catch (error) {
+            console.error('❌ Google Docs conversion failed:', error);
+            
+            // Fallback: Try to extract any text content
+            console.log('🔄 Attempting fallback text extraction...');
+            const content = await file.text();
+            
+            if (content && content.trim().length > 0) {
+                return await this.createEnhancedPdf(content, file.name, 'Google Docs File (Fallback)');
+            }
+            
+            throw new Error(`Google Docs conversion failed: ${error.message}`);
         }
     }
     
