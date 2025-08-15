@@ -335,30 +335,7 @@ body {
     margin-bottom: 20px;
 }
 
-/* OCR controls */
-.ocr-controls {
-	margin-top: 16px;
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 12px;
-}
 
-.ocr-controls .toggle {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.ocr-controls label {
-	font-size: 0.95rem;
-	color: var(--text-primary);
-}
-
-.ocr-note {
-	font-size: 0.85rem;
-	color: var(--text-secondary);
-	margin-top: 4px;
-}
 
 .pdf-settings h4 {
     margin-bottom: 15px;

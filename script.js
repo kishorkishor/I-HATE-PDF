@@ -330,7 +330,6 @@ class FileManager {
         
         // Add batch controls if multiple images
         this.renderBatchControls();
-        this.renderOcrControls();
     }
     
     renderBatchControls() {
@@ -363,36 +362,7 @@ class FileManager {
         }
     }
 
-    renderOcrControls() {
-        // Avoid duplicates
-        const settingsContainer = document.querySelector('.pdf-settings');
-        if (!settingsContainer) return;
-        let ocrContainer = document.getElementById('ocrControls');
-        if (ocrContainer) return;
 
-        ocrContainer = document.createElement('div');
-        ocrContainer.id = 'ocrControls';
-        ocrContainer.className = 'ocr-controls';
-        ocrContainer.innerHTML = `
-            <div class="toggle">
-                <input type="checkbox" id="enableOcr" />
-                <label for="enableOcr">Enable OCR (extract text from images/scanned PDFs)</label>
-            </div>
-            <div>
-                <label for="ocrLang">OCR Language</label>
-                <select id="ocrLang">
-                    <option value="eng">English (eng)</option>
-                    <option value="hin">Hindi (hin)</option>
-                    <option value="ara">Arabic (ara)</option>
-                    <option value="ben">Bengali (ben)</option>
-                    <option value="fra">French (fra)</option>
-                    <option value="deu">German (deu)</option>
-                </select>
-                <div class="ocr-note">OCR runs in your browser. For best results, use clear, high-resolution images.</div>
-            </div>
-        `;
-        settingsContainer.appendChild(ocrContainer);
-    }
     
     renderFileList() {
         this.fileList.innerHTML = '';
@@ -584,11 +554,7 @@ class FileManager {
                 return;
             }
             
-            // Auto-enable OCR if PDFs or scans present
-            const ocrCheckbox = document.getElementById('enableOcr');
-            if (ocrCheckbox && (pdfFiles.length > 0 || imageFiles.length > 0)) {
-                ocrCheckbox.checked = true;
-            }
+
 
             // Convert images (client-side)
             if (imageFiles.length > 0) {
@@ -619,9 +585,9 @@ class FileManager {
                 }
             }
 
-            // Convert PDFs with optional OCR
+            // Convert PDFs (basic merge - no OCR)
             if (pdfFiles.length > 0) {
-                await this.convertPdfFilesWithOcr(pdfFiles);
+                this.showInfo('PDF processing temporarily disabled. Use images or documents instead.');
             }
             
             // No valid files
@@ -841,43 +807,8 @@ class FileManager {
         progressFill.style.width = '80%';
         progressText.textContent = 'Adding image to PDF...';
         
-        const ocrEnabled = document.getElementById('enableOcr')?.checked;
-        let ocrText = '';
-        if (ocrEnabled && window.Tesseract) {
-            progressText.textContent = 'Running OCR...';
-            const lang = document.getElementById('ocrLang')?.value || 'eng';
-            try {
-                // Preprocess to improve OCR
-                const preUrl = await this.preprocessDataUrlForOcr(imageData.dataUrl, 2);
-                const { data } = await Tesseract.recognize(preUrl, lang, {
-                    logger: (m) => {
-                        if (m.status === 'recognizing text' && m.progress) {
-                            progressText.textContent = `OCR ${Math.round(m.progress * 100)}%...`;
-                        }
-                    }
-                });
-                ocrText = (data?.text || '').trim();
-            } catch (e) {
-                console.warn('OCR failed:', e);
-            }
-        }
-
         // Add image to PDF
         pdf.addImage(imageData.dataUrl, 'JPEG', x, y, width, height);
-
-        // If OCR text exists, add an invisible text layer for search/select
-        if (ocrText && ocrText.length > 5) {
-            pdf.setTextColor(255, 255, 255);
-            pdf.setFontSize(1); // tiny font
-            const lines = pdf.splitTextToSize(ocrText, maxWidth);
-            let ty = margin; // put at top margin; hidden by white color
-            lines.forEach(line => {
-                if (ty > pageHeight - margin) return;
-                pdf.text(line, margin, ty);
-                ty += 2;
-            });
-            pdf.setTextColor(0, 0, 0);
-        }
         
         progressFill.style.width = '100%';
         progressText.textContent = 'Downloading PDF...';
@@ -909,9 +840,6 @@ class FileManager {
         // Process in chunks to prevent UI blocking
         const chunkSize = this.getOptimalChunkSize(files.length);
         const startTime = Date.now();
-        
-        const ocrEnabled = document.getElementById('enableOcr')?.checked;
-        const ocrLang = document.getElementById('ocrLang')?.value || 'eng';
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
@@ -943,30 +871,6 @@ class FileManager {
                 
                 // Add image to PDF
                 pdf.addImage(imageData.dataUrl, 'JPEG', x, y, width, height);
-
-                // Optional OCR per image
-                if (ocrEnabled && window.Tesseract) {
-                    this.updateDetailedProgress(i + 1, files.length, `OCR: ${file.name}`, startTime);
-                    try {
-                        const preUrl = await this.preprocessDataUrlForOcr(imageData.dataUrl, 2);
-                        const { data } = await Tesseract.recognize(preUrl, ocrLang);
-                        const text = (data?.text || '').trim();
-                        if (text && text.length > 5) {
-                            pdf.setTextColor(255, 255, 255);
-                            pdf.setFontSize(1);
-                            const lines = pdf.splitTextToSize(text, maxWidth);
-                            let ty = margin;
-                            lines.forEach(line => {
-                                if (ty > pageHeight - margin) return;
-                                pdf.text(line, margin, ty);
-                                ty += 2;
-                            });
-                            pdf.setTextColor(0, 0, 0);
-                        }
-                    } catch (e) {
-                        console.warn('OCR failed for', file.name, e);
-                    }
-                }
                 
                 // Yield control to browser every chunk
                 if ((i + 1) % chunkSize === 0) {
@@ -1010,89 +914,7 @@ class FileManager {
         return new Promise(resolve => setTimeout(resolve, 0));
     }
     
-    async convertPdfFilesWithOcr(files) {
-        const ocrEnabled = document.getElementById('enableOcr')?.checked;
-        const ocrLang = document.getElementById('ocrLang')?.value || 'eng';
-        const progressFill = document.getElementById('progressFill');
-        const progressText = document.getElementById('progressText');
 
-        // If OCR disabled, just merge PDFs by re-downloading
-        if (!ocrEnabled) {
-            this.showInfo('OCR disabled. PDFs will not be processed.');
-            return;
-        }
-
-        if (!window['pdfjsLib']) {
-            throw new Error('PDF.js not loaded');
-        }
-
-        const { jsPDF } = window.jspdf;
-        const outPdf = new jsPDF();
-        let firstPage = true;
-
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            progressText.textContent = `Processing PDF: ${file.name}`;
-            progressFill.style.width = `${Math.round(((i) / files.length) * 100)}%`;
-
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            for (let p = 1; p <= pdf.numPages; p++) {
-                const page = await pdf.getPage(p);
-                const viewport = page.getViewport({ scale: 2 });
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                canvas.width = viewport.width;
-                canvas.height = viewport.height;
-                await page.render({ canvasContext: ctx, viewport }).promise;
-
-                // OCR this page image
-                let text = '';
-                try {
-                    const { data } = await Tesseract.recognize(canvas.toDataURL('image/png'), ocrLang);
-                    text = (data?.text || '').trim();
-                } catch (e) {
-                    console.warn('OCR failed for PDF page', p, e);
-                }
-
-                // Add to output PDF
-                const imgData = canvas.toDataURL('image/jpeg', 0.85);
-                if (!firstPage) outPdf.addPage();
-                firstPage = false;
-
-                const pageWidth = outPdf.internal.pageSize.getWidth();
-                const pageHeight = outPdf.internal.pageSize.getHeight();
-                const margin = 10;
-                const maxWidth = pageWidth - margin * 2;
-                const ratio = maxWidth / canvas.width;
-                const w = maxWidth;
-                const h = canvas.height * ratio;
-                const x = margin;
-                const y = (pageHeight - h) / 2;
-                outPdf.addImage(imgData, 'JPEG', x, Math.max(10, y), w, h);
-
-                if (text && text.length > 5) {
-                    outPdf.setTextColor(255, 255, 255);
-                    outPdf.setFontSize(1);
-                    const lines = outPdf.splitTextToSize(text, maxWidth);
-                    let ty = 8;
-                    lines.forEach(line => {
-                        if (ty > pageHeight - 8) return;
-                        outPdf.text(line, margin, ty);
-                        ty += 2;
-                    });
-                    outPdf.setTextColor(0, 0, 0);
-                }
-
-                // Cleanup
-                canvas.width = 0; canvas.height = 0;
-            }
-        }
-
-        progressText.textContent = 'Downloading OCR PDF...';
-        progressFill.style.width = '100%';
-        outPdf.save(`ocr-output-${Date.now()}.pdf`);
-    }
 
     async loadImageDataOptimized(file) {
         // Add memory management and size limits
@@ -2319,41 +2141,7 @@ class FileManager {
         }
     }
     
-    // --- OCR Preprocessing Helpers ---
-    async preprocessDataUrlForOcr(dataUrl, scale = 2) {
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = Math.floor(img.width * scale);
-                canvas.height = Math.floor(img.height * scale);
-                const ctx = canvas.getContext('2d');
-                ctx.imageSmoothingEnabled = false;
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                this.applyBinarizeContrast(ctx, canvas.width, canvas.height);
-                resolve(canvas.toDataURL('image/png'));
-            };
-            img.src = dataUrl;
-        });
-    }
 
-    applyBinarizeContrast(ctx, w, h) {
-        const imgData = ctx.getImageData(0, 0, w, h);
-        const data = imgData.data;
-        let sum = 0;
-        for (let i = 0; i < data.length; i += 4) {
-            const g = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-            sum += g;
-        }
-        const mean = sum / (data.length / 4);
-        const threshold = Math.min(220, Math.max(110, mean * 0.95));
-        for (let i = 0; i < data.length; i += 4) {
-            const g = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-            const v = g > threshold ? 255 : 0;
-            data[i] = data[i + 1] = data[i + 2] = v;
-        }
-        ctx.putImageData(imgData, 0, 0);
-    }
     
     hideDetailedProgress() {
         const detailsContainer = document.getElementById('progressDetails');

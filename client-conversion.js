@@ -397,7 +397,7 @@ class ClientDocumentConverter {
                 height: height,
             });
 
-            // Note: For scanned HTML screenshots, OCR is handled in image flows.
+
             
             // Add metadata
             pdfDoc.setTitle(`Converted: ${originalFilename}`);
