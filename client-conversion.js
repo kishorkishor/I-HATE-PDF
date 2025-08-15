@@ -81,17 +81,17 @@ class ClientDocumentConverter {
     }
     
     async convertDocxToPdf(file) {
-        // Use mammoth.js to extract DOCX content
+        // Extract DOCX to HTML (structure + text)
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.convertToHtml({ arrayBuffer });
         const html = result.value;
-        
+
         if (result.messages.length > 0) {
             console.warn('DOCX conversion warnings:', result.messages);
         }
-        
-        // Convert HTML to PDF using PDF-lib
-        return await this.htmlToPdf(html, file.name);
+
+        // Convert HTML to a text-based PDF (selectable text) using pdfMake
+        return await this.htmlToPdfTextBased(html, file.name);
     }
     
     async convertDocToPdf(file) {
@@ -99,7 +99,10 @@ class ClientDocumentConverter {
         if (window.freeUnlimitedConverter) {
             try {
                 console.log('🆓 Using FREE unlimited DOC conversion...');
-                return await window.freeUnlimitedConverter.convertFile(file);
+                const res = await window.freeUnlimitedConverter.convertFile(file);
+                // Unwrap result object if necessary
+                if (res && res.data) return res.data;
+                return res;
             } catch (error) {
                 console.log('⚠️ Free conversion failed, using basic fallback...');
             }
@@ -161,6 +164,39 @@ class ClientDocumentConverter {
         `;
         
         return await this.htmlToPdf(html, file.name);
+    }
+
+    async htmlToPdfTextBased(html, originalFilename) {
+        // Ensure pdfMake and html-to-pdfmake are loaded
+        if (!window.pdfMake || !window.htmlToPdfmake) {
+            console.warn('pdfMake/html-to-pdfmake not loaded; falling back to rasterized PDF');
+            return await this.htmlToPdf(html, originalFilename);
+        }
+
+        // Convert HTML to pdfMake document definition
+        const content = window.htmlToPdfmake(html, {
+            window: window,
+        });
+
+        const docDefinition = {
+            pageSize: 'A4',
+            pageMargins: [40, 50, 40, 50],
+            defaultStyle: { fontSize: 11 },
+            content: Array.isArray(content) ? content : [content],
+        };
+
+        // Create PDF and return raw bytes (Uint8Array)
+        return await new Promise((resolve, reject) => {
+            try {
+                const pdfDocGenerator = window.pdfMake.createPdf(docDefinition);
+                pdfDocGenerator.getBlob(async (blob) => {
+                    const ab = await blob.arrayBuffer();
+                    resolve(new Uint8Array(ab));
+                });
+            } catch (e) {
+                reject(e);
+            }
+        });
     }
     
     async convertXlsxToPdf(file) {
@@ -360,6 +396,8 @@ class ClientDocumentConverter {
                 width: width,
                 height: height,
             });
+
+            // Note: For scanned HTML screenshots, OCR is handled in image flows.
             
             // Add metadata
             pdfDoc.setTitle(`Converted: ${originalFilename}`);

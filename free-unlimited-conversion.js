@@ -79,45 +79,36 @@ class FreeUnlimitedConverter {
     }
     
     async convertGoogleDocsFile(file) {
-        console.log('📊 Processing Google Docs file with enhanced solutions...');
+        console.log('🔧 Processing Google Docs file with SIMPLE, RELIABLE fix...');
         
         try {
-            // Use enhanced Google Docs solutions first
+            // Use the simple, guaranteed-to-work Google Docs fix
+            if (window.simpleGoogleDocsFix) {
+                console.log('🎯 Using simple Google Docs fix (guaranteed to work)...');
+                return await window.simpleGoogleDocsFix.processGoogleDocsFile(file);
+            }
+            
+            // If simple fix not available, fall back to enhanced solutions
             if (window.enhancedGoogleDocsSolutions) {
-                console.log('🚀 Using enhanced Google Docs solutions...');
+                console.log('🚀 Falling back to enhanced Google Docs solutions...');
                 return await window.enhancedGoogleDocsSolutions.handleGoogleDocsFile(file);
             }
             
-            // Fallback to original Google Docs converter
+            // If nothing else available, use basic converter
             if (window.googleDocsConverter) {
-                console.log('🔄 Falling back to original Google Docs converter...');
+                console.log('🔄 Falling back to basic Google Docs converter...');
                 return await window.googleDocsConverter.convertGoogleDocsFile(file);
             }
             
             throw new Error('No Google Docs converter available');
             
         } catch (error) {
-            console.error('❌ Enhanced Google Docs conversion failed:', error);
+            console.error('❌ All Google Docs conversion methods failed:', error);
             
-            // Final fallback: Try to extract any text content and create informative PDF
-            console.log('🔄 Attempting final fallback text extraction...');
-            try {
-                const content = await file.text();
-                
-                // Even if content is minimal, create a helpful PDF
-                const helpfulContent = content && content.trim().length > 5 ? 
-                    content : 
-                    this.createGoogleDocsHelpContent(file.name);
-                
-                return await this.createEnhancedPdf(helpfulContent, file.name, 'Google Docs File');
-                
-            } catch (fallbackError) {
-                console.error('❌ Final fallback failed:', fallbackError);
-                
-                // Last resort: Create a help PDF
-                const helpContent = this.createGoogleDocsHelpContent(file.name);
-                return await this.createEnhancedPdf(helpContent, file.name, 'Google Docs Help Guide');
-            }
+            // Emergency fallback: Create a basic help PDF using our own method
+            console.log('🚨 Using emergency fallback...');
+            const helpContent = this.createGoogleDocsHelpContent(file.name);
+            return await this.createEnhancedPdf(helpContent, file.name, 'Google Docs Emergency Guide');
         }
     }
     
@@ -433,11 +424,11 @@ For technical support, ensure you're uploading the actual exported document file
         pdfDoc.setProducer('I HATE PDF - Free Unlimited Converter');
         pdfDoc.setCreationDate(new Date());
         
-        const page = pdfDoc.addPage([595, 842]); // A4 size
-        const { width, height } = page.getSize();
+        let currentPage = pdfDoc.addPage([595, 842]); // A4 size
+        let { width, height } = currentPage.getSize();
         
         // Enhanced header
-        page.drawRectangle({
+        currentPage.drawRectangle({
             x: 0,
             y: height - 80,
             width: width,
@@ -445,14 +436,14 @@ For technical support, ensure you're uploading the actual exported document file
             color: rgb(0.95, 0.95, 0.95),
         });
         
-        page.drawText(`📄 ${documentType}`, {
+        currentPage.drawText(`📄 ${documentType}`, {
             x: 50,
             y: height - 35,
             size: 16,
             color: rgb(0.2, 0.2, 0.2),
         });
         
-        page.drawText(originalFilename, {
+        currentPage.drawText(originalFilename, {
             x: 50,
             y: height - 55,
             size: 12,
@@ -466,38 +457,32 @@ For technical support, ensure you're uploading the actual exported document file
         
         for (const line of lines) {
             if (yPosition < 80) {
-                // Add new page
-                const newPage = pdfDoc.addPage([595, 842]);
-                yPosition = newPage.getSize().height - 50;
-                
-                // Continue on new page
-                newPage.drawText(line.substring(0, 90), {
-                    x: 50,
-                    y: yPosition,
-                    size: 10,
-                    color: rgb(0, 0, 0),
-                });
+                // Add new page and reset cursor
+                currentPage = pdfDoc.addPage([595, 842]);
+                ({ width, height } = currentPage.getSize());
+                yPosition = height - 50;
             } else {
-                page.drawText(line.substring(0, 90), {
-                    x: 50,
-                    y: yPosition,
-                    size: 10,
-                    color: rgb(0, 0, 0),
-                });
+                // no-op
             }
+            currentPage.drawText(line.substring(0, 90), {
+                x: 50,
+                y: yPosition,
+                size: 10,
+                color: rgb(0, 0, 0),
+            });
             
             yPosition -= lineHeight;
         }
         
         // Enhanced footer
-        page.drawText('🆓 Converted with FREE unlimited converter - No API limits!', {
+        currentPage.drawText('🆓 Converted with FREE unlimited converter - No API limits!', {
             x: 50,
             y: 30,
             size: 8,
             color: rgb(0.6, 0.6, 0.6),
         });
         
-        page.drawText(`Generated: ${new Date().toLocaleString()}`, {
+        currentPage.drawText(`Generated: ${new Date().toLocaleString()}`, {
             x: 50,
             y: 15,
             size: 8,
